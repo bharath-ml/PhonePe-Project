@@ -131,7 +131,7 @@ Step 3: Set Up Environment Variables
         Create a .env file in the root directory:
                                                 DB_HOST=localhost
                                                 DB_USER=root
-                                                DB_PASSWORD=P@rimi18
+                                                DB_PASSWORD=your_sql_password
                                                 DB_NAME=phonepe_pulse
 
 Step 4: Load Data to MySQL---->cd scripts
