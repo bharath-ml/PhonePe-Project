@@ -848,149 +848,103 @@ elif selected == "User Engagement":
 
 # 6. Geo Analysis
 elif selected == "Geo Analysis":
-    st.markdown('<h1 class="main-header">🗺️ Comprehensive Geographical Analysis</h1>', unsafe_allow_html=True)
-    
-    # Analysis type selector
-    analysis_type = st.selectbox("Select Analysis Type", 
-                                ["Transaction Heatmap", "User Distribution", "Growth Patterns", "Performance Comparison"])
-    
-    if analysis_type == "Transaction Heatmap":
-        st.markdown("### 🔥 Transaction Amount Heatmap")
-        try:
-            query = f"""
-            SELECT State, SUM(Transacion_amount) as Total_Amount, SUM(Transacion_count) as Total_Count
-            FROM aggregated_transaction 
+        # 🗺️ User Distribution Analysis
+    st.markdown("### 👥 User Distribution Analysis")
+
+    try:
+        # Try different column name variations
+        possible_queries = [
+            f"""
+            SELECT State, SUM(RegisteredUsers) as Total_Users, SUM(AppOpens) as Total_Opens
+            FROM map_user 
             WHERE Year = {selected_year} AND Quarter = {selected_quarter}
+                AND RegisteredUsers > 0
             GROUP BY State 
-            ORDER BY Total_Amount DESC
+            ORDER BY Total_Users DESC
+            """,
+            f"""
+            SELECT State, SUM(Registered_users) as Total_Users, SUM(App_opens) as Total_Opens
+            FROM map_user 
+            WHERE Year = {selected_year} AND Quarter = {selected_quarter}
+                AND Registered_users > 0
+            GROUP BY State 
+            ORDER BY Total_Users DESC
             """
-            mycursor.execute(query)
-            result = mycursor.fetchall()
+        ]
+        
+        result = None
+        for query in possible_queries:
+            try:
+                mycursor.execute(query)
+                result = mycursor.fetchall()
+                if result:
+                    break
+            except Exception as query_error:
+                continue
+
+        if result:
+            # Convert query result to DataFrame
+            df = pd.DataFrame(result, columns=['State', 'Total_Users', 'Total_Opens'])
+
+            # Convert to float safely
+            df['Total_Users'] = df['Total_Users'].apply(safe_float_conversion)
+            df['Total_Opens'] = df['Total_Opens'].apply(safe_float_conversion)
+
+            # Clean state names
+            df['State_Clean'] = df['State'].str.replace('-', ' ').str.title()
+
+            # Calculate engagement rate
+            df['Engagement_Rate'] = df.apply(
+                lambda row: safe_float_conversion(row['Total_Opens'] / row['Total_Users'])
+                if row['Total_Users'] > 0 else 0, axis=1
+            )
+
+            # Create bubble chart visualization
+            fig = px.scatter(
+                df, 
+                x='Total_Users', 
+                y='Total_Opens', 
+                size='Engagement_Rate', 
+                hover_name='State_Clean',
+                title=f'User Distribution & Engagement (Q{selected_quarter} {selected_year})',
+                color='Engagement_Rate',
+                color_continuous_scale='viridis',
+                labels={'Total_Users': 'Registered Users', 'Total_Opens': 'App Opens'}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Display tables side by side
+            col1, col2 = st.columns(2)
             
-            if result:
-                df = pd.DataFrame(result, columns=['State', 'Total_Amount', 'Total_Count'])
-                
-                # Convert to float safely
-                df['Total_Amount'] = df['Total_Amount'].apply(safe_float_conversion)
-                df['Total_Count'] = df['Total_Count'].apply(safe_float_conversion)
-                
-                # Clean state names and create state codes for mapping
-                df['State_Clean'] = df['State'].str.replace('-', ' ').str.title()
-                
-                # Create choropleth-style visualization
-                fig = px.bar(df.head(20), x='State_Clean', y='Total_Amount',
-                           title=f'State-wise Transaction Heatmap (Q{selected_quarter} {selected_year})',
-                           color='Total_Amount',
-                           color_continuous_scale='reds',
-                           text='Total_Amount')
-                fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
-                fig.update_layout(xaxis_tickangle=45, height=600)
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Show comprehensive data with serial numbers
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("#### Top Performing States")
-                    top_states = df.head(10).copy()
-                    top_states['Total_Amount_Formatted'] = top_states['Total_Amount'].apply(format_number)
-                    top_states['Total_Count'] = top_states['Total_Count'].astype(int)
-                    top_states.index = range(1, len(top_states) + 1)
-                    st.dataframe(top_states[['State_Clean', 'Total_Count', 'Total_Amount_Formatted']], use_container_width=True)
-                
-                with col2:
-                    st.markdown("#### Performance Metrics")
-                    total_amount = df['Total_Amount'].sum()
-                    total_count = df['Total_Count'].sum()
-                    avg_transaction = total_amount / total_count if total_count > 0 else 0
-                    
-                    st.metric("Total Transaction Amount", format_number(total_amount))
-                    st.metric("Total Transactions", f"{int(total_count):,}")
-                    st.metric("Average Transaction", format_number(avg_transaction))
-            else:
-                st.warning("No transaction data available for heatmap")
-        except Exception as e:
-            st.error(f"Error creating transaction heatmap: {e}")
-    
-    elif analysis_type == "User Distribution":
-        st.markdown("### 👥 User Distribution Analysis")
-        try:
-            # Try different column name variations
-            possible_queries = [
-                f"""
-                SELECT State, SUM(RegisteredUsers) as Total_Users, SUM(AppOpens) as Total_Opens
-                FROM map_user 
-                WHERE Year = {selected_year} AND Quarter = {selected_quarter}
-                    AND RegisteredUsers > 0
-                GROUP BY State 
-                ORDER BY Total_Users DESC
-                """,
-                f"""
-                SELECT State, SUM(Registered_users) as Total_Users, SUM(App_opens) as Total_Opens
-                FROM map_user 
-                WHERE Year = {selected_year} AND Quarter = {selected_quarter}
-                    AND Registered_users > 0
-                GROUP BY State 
-                ORDER BY Total_Users DESC
-                """
-            ]
-            
-            result = None
-            for query in possible_queries:
-                try:
-                    mycursor.execute(query)
-                    result = mycursor.fetchall()
-                    if result:
-                        break
-                except Exception as query_error:
-                    continue
-            
-            if result:
-                df = pd.DataFrame(result, columns=['State', 'Total_Users', 'Total_Opens'])
-                
-                # Convert to float safely
-                df['Total_Users'] = df['Total_Users'].apply(safe_float_conversion)
-                df['Total_Opens'] = df['Total_Opens'].apply(safe_float_conversion)
-                
-                # Clean state names
-                df['State_Clean'] = df['State'].str.replace('-', ' ').str.title()
-                
-                # Calculate user density metrics
-                df['Engagement_Rate'] = df.apply(
-                    lambda row: safe_float_conversion(row['Total_Opens'] / row['Total_Users']) 
-                    if row['Total_Users'] > 0 else 0, axis=1
+            with col1:
+                st.markdown("#### Highest User States")
+                user_states = df.head(10).copy()
+                user_states['Total_Users'] = user_states['Total_Users'].astype(int)
+                user_states['Total_Opens'] = user_states['Total_Opens'].astype(int)
+                user_states['Engagement_Rate'] = user_states['Engagement_Rate'].round(2)
+                user_states.index = range(1, len(user_states) + 1)
+                st.dataframe(
+                    user_states[['State_Clean', 'Total_Users', 'Total_Opens', 'Engagement_Rate']],
+                    use_container_width=True
                 )
-                
-                # Create bubble chart
-                fig = px.scatter(df, x='Total_Users', y='Total_Opens', 
-                               size='Engagement_Rate', hover_name='State_Clean',
-                               title=f'User Distribution & Engagement (Q{selected_quarter} {selected_year})',
-                               color='Engagement_Rate',
-                               color_continuous_scale='viridis',
-                               labels={'Total_Users': 'Registered Users', 'Total_Opens': 'App Opens'})
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Show distribution analysis with serial numbers
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("#### Highest User States")
-                    user_states = df.head(10).copy()
-                    user_states['Total_Users'] = user_states['Total_Users'].astype(int)
-                    user_states['Total_Opens'] = user_states['Total_Opens'].astype(int)
-                    user_states['Engagement_Rate'] = user_states['Engagement_Rate'].round(2)
-                    user_states.index = range(1, len(user_states) + 1)
-                    st.dataframe(user_states[['State_Clean', 'Total_Users', 'Total_Opens', 'Engagement_Rate']], use_container_width=True)
-                
-                with col2:
-                    st.markdown("#### Best Engagement States")
-                    engagement_states = df.sort_values('Engagement_Rate', ascending=False).head(10).copy()
-                    engagement_states['Total_Users'] = engagement_states['Total_Users'].astype(int)
-                    engagement_states['Engagement_Rate'] = engagement_states['Engagement_Rate'].round(2)
-                    engagement_states.index = range(1, len(engagement_states) + 1)
-                    st.dataframe(engagement_states[['State_Clean', 'Total_Users', 'Engagement_Rate']], use_container_width=True)
-            else:
-                st.warning("No user distribution data available")
-        except Exception as e:
-            st.error(f"Error in user distribution analysis: {e}")
+            
+            with col2:
+                st.markdown("#### Best Engagement States")
+                engagement_states = df.sort_values('Engagement_Rate', ascending=False).head(10).copy()
+                engagement_states['Total_Users'] = engagement_states['Total_Users'].astype(int)
+                engagement_states['Engagement_Rate'] = engagement_states['Engagement_Rate'].round(2)
+                engagement_states.index = range(1, len(engagement_states) + 1)
+                st.dataframe(
+                    engagement_states[['State_Clean', 'Total_Users', 'Engagement_Rate']],
+                    use_container_width=True
+                )
+
+        else:
+            st.warning("No user distribution data available")
+
+    except Exception as e:
+        st.error(f"Error in user distribution analysis: {e}")
+
 
 # Summary and Insights Section
 st.markdown("---")
@@ -1028,12 +982,4 @@ with col3:
     """)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666; padding: 20px;'>
-    <h4>📊 PhonePe Pulse Analytics Dashboard</h4>
-    <p>Powered by Streamlit • Data Analytics • Business Intelligence</p>
-    <p>Built for comprehensive digital payment ecosystem analysis</p>
-</div>
-""", unsafe_allow_html=True)
+

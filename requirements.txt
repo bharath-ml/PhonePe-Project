@@ -1,6 +1,7 @@
-pandas
-numpy
-mysql-connector-python
-plotly
 streamlit
+streamlit-option-menu
+mysql-connector-python
+pandas
+plotly
 python-dotenv
+numpy
